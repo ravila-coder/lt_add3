@@ -1,0 +1,527 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfolio Analysis</title>
+<style>
+  :root { --green:#0C473C; --line:#d8d8d8; --bg:#f6f6f6; }
+  * { box-sizing:border-box; }
+  body { font:13px/1.45 Helvetica,Arial,sans-serif; margin:0; background:var(--bg); color:#1f1f1f; }
+  main { max-width:920px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--green);
+       border-bottom:1px solid var(--line); padding-bottom:5px; margin:28px 0 12px; }
+  .sub { color:#6d6f6f; margin:0 0 20px; }
+  section[hidden] { display:none; }
+  button { font:inherit; background:var(--green); color:#fff; border:0; border-radius:4px;
+           padding:7px 14px; cursor:pointer; }
+  button:disabled { background:#b4b4b4; cursor:default; }
+  button.ghost { background:#fff; color:var(--green); border:1px solid var(--green); }
+  input,select,textarea { font:inherit; padding:6px 8px; border:1px solid var(--line);
+                          border-radius:4px; background:#fff; }
+  textarea { width:100%; min-height:62px; font-family:ui-monospace,Consolas,monospace; font-size:12px; }
+  .bubbles { display:flex; flex-wrap:wrap; gap:8px; }
+  .bub { display:flex; align-items:center; gap:6px; border:1px solid; border-radius:14px;
+         padding:3px 5px 3px 11px; background:#fff; cursor:grab; }
+  .bub:active { cursor:grabbing; }
+  .bub.dragging { opacity:.4; }
+  .bub span.nm { font-weight:600; }
+  .bub select { border:0; background:transparent; font-size:11px; padding:2px; cursor:pointer; }
+  .bub.calc span.nm::after { content:" \01A1"; color:#6d6f6f; font-weight:400; }
+  .t-string  { border-color:#6d6f6f; } .t-string  select { color:#6d6f6f; }
+  .t-integer { border-color:#0C473C; } .t-integer select { color:#0C473C; }
+  .t-float   { border-color:#1f6f5c; } .t-float   select { color:#1f6f5c; }
+  .t-date    { border-color:#8a6d3b; } .t-date    select { color:#8a6d3b; }
+  .t-boolean { border-color:#7a3b8a; } .t-boolean select { color:#7a3b8a; }
+  .row { display:flex; gap:16px; flex-wrap:wrap; }
+  .row label, .zlabel { display:block; font-size:11px; text-transform:uppercase;
+               letter-spacing:.05em; color:#6d6f6f; margin-bottom:4px; }
+  .note { padding:9px 11px; border-radius:4px; margin:10px 0; font-size:12px; }
+  .warn { background:#fff8e1; border:1px solid #e8d18a; }
+  .err  { background:#fdeaea; border:1px solid #e0a3a3; }
+  .ok   { background:#e8f3ee; border:1px solid #9cc7b6; }
+  .muted { color:#6d6f6f; font-size:12px; }
+  .modes { display:flex; gap:18px; margin-bottom:4px; }
+  .modes label { display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .files { display:flex; gap:12px; flex-wrap:wrap; }
+  .file { flex:1; min-width:250px; border:1px solid var(--line); border-radius:6px;
+          background:#fff; padding:10px 12px; }
+  .file .fname { font-weight:600; font-size:12px; }
+  .file .req { font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+               color:#6d6f6f; background:var(--bg); border-radius:8px; padding:1px 7px; }
+  .file input[type=file] { margin-top:8px; width:100%; border:0; padding:0; font-size:12px; }
+  .file .fstat { display:block; margin-top:6px; }
+  .file.done { border-color:#9cc7b6; background:#f6fbf9; }
+  .file.bad  { border-color:#e0a3a3; background:#fdf6f6; }
+  .chk { display:flex; align-items:center; gap:7px; margin:12px 0 0; font-size:12px;
+         color:#6d6f6f; }
+  body.tape .coconly { display:none; }
+
+  /* drop zones */
+  .zone { min-height:74px; border:1.5px dashed var(--line); border-radius:6px; background:#fff;
+          padding:10px; display:flex; flex-wrap:wrap; gap:8px; align-content:flex-start; }
+  .zone.over { border-color:var(--green); background:#f2f8f5; }
+  .zone .empty { color:#9a9a9a; font-size:12px; align-self:center; margin:0 auto; }
+  .slot { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line);
+          border-left:3px solid var(--green); border-radius:4px; padding:5px 8px; cursor:grab; }
+  .slot.dragging { opacity:.4; }
+  .slot .ix { color:#9a9a9a; font-size:11px; font-variant-numeric:tabular-nums; }
+  .slot .rm { border:0; background:transparent; color:#9a9a9a; cursor:pointer; font-size:15px;
+              line-height:1; padding:0 2px; }
+  .slot .rm:hover { color:#b03030; }
+
+  /* stacked zones: one full-width row per selection */
+  .zone.vertical { flex-direction:column; flex-wrap:nowrap; gap:6px; }
+  .zone.vertical .slot { width:100%; gap:10px; }
+  .zone.vertical .slot .what { font-weight:600; }
+  .zone.vertical .slot .spec { margin-left:auto; color:#6d6f6f; font-size:11px;
+                               font-variant-numeric:tabular-nums; }
+  .slot .grip { color:#c4c4c4; font-size:11px; letter-spacing:-1px; }
+
+  /* collapsible groups */
+  details.group { border:1px solid var(--line); border-radius:6px; background:#fff;
+                  margin:16px 0; padding:0 12px 2px; }
+  details.group > summary { cursor:pointer; list-style:none; padding:10px 0;
+      font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--green);
+      display:flex; align-items:center; gap:8px; }
+  details.group > summary::-webkit-details-marker { display:none; }
+  details.group > summary::before { content:"\25B8"; color:#9a9a9a; font-size:10px; }
+  details.group[open] > summary::before { content:"\25BE"; }
+  details.group[open] > summary { border-bottom:1px solid var(--line); margin-bottom:10px; }
+  details.group .tag { margin-left:auto; text-transform:none; letter-spacing:0;
+      font-size:11px; color:#6d6f6f; background:var(--bg); border-radius:10px; padding:1px 9px; }
+  details.group .zone { margin-bottom:12px; }
+</style>
+
+<main>
+  <h1>Portfolio Analysis</h1>
+  <p class="sub">Loan tape in (CSV or Excel), formatted workbook out.</p>
+  <div id="engine"><div class="note warn">Cargando el motor de análisis. La primera vez tarda unos 20 segundos; después queda en caché.</div></div>
+  <p class="muted" style="margin:-6px 0 0">Tus archivos se procesan dentro de este navegador. No se suben a ningún servidor.</p>
+
+  <h2>1. Scope</h2>
+  <div class="modes">
+    <label><input type="radio" name="mode" value="tape" checked> Tape analysis</label>
+    <label><input type="radio" name="mode" value="coc"> Tape analysis + COC</label>
+  </div>
+
+  <h2>2. Files</h2>
+  <div class="files">
+    <div class="file" id="f-tape">
+      <div><span class="fname">Loan tape</span> <span class="req">required</span></div>
+      <input type="file" data-slot="tape" accept=".csv,.txt,.xlsx,.xlsm">
+      <span class="fstat muted"></span>
+    </div>
+    <div class="file coconly" id="f-esperados">
+      <div><span class="fname">Expected payments</span> <span class="req">COC</span></div>
+      <input type="file" data-slot="esperados" accept=".csv,.txt,.xlsx,.xlsm">
+      <span class="fstat muted"></span>
+    </div>
+    <div class="file coconly" id="f-recibidos">
+      <div><span class="fname">Received payments</span> <span class="req">COC</span></div>
+      <input type="file" data-slot="recibidos" accept=".csv,.txt,.xlsx,.xlsm">
+      <span class="fstat muted"></span>
+    </div>
+  </div>
+  <label class="chk coconly"><input type="checkbox" id="dedupe" checked>
+    De-duplicate identical rows in the expected file</label>
+  <div id="upInfo"></div>
+
+  <section id="s2" hidden>
+    <h2>3. Columns</h2>
+    <p class="muted" style="margin:0 0 10px">Change a type with the dropdown. Drag a bubble into the summary below.</p>
+    <div class="bubbles" id="bubbles"></div>
+    <div id="typeMsg"></div>
+
+    <h2>Calculated column</h2>
+    <div class="row" style="align-items:flex-end">
+      <div><label for="cname">Name</label><input id="cname" placeholder="saldo_vencido"></div>
+      <div style="flex:1;min-width:320px">
+        <label for="cexpr">SQL expression</label>
+        <textarea id="cexpr" placeholder='CASE WHEN "dias_atraso" > 90 THEN "saldo_insoluto" ELSE 0 END'></textarea>
+        <div class="muted">Quote column names that contain spaces or accents.</div>
+      </div>
+      <button id="addCalc" class="ghost">Add</button>
+    </div>
+    <div id="calcMsg"></div>
+
+    <h2>4. Field mapping</h2>
+    <div class="row">
+      <div>
+        <label for="saldo">Saldo Insoluto (required)</label>
+        <input id="saldo" list="numCols" placeholder="type or pick" autocomplete="off" size="26">
+      </div>
+      <div>
+        <label for="dpd">Días de Atraso (required)</label>
+        <input id="dpd" list="numCols" placeholder="type or pick" autocomplete="off" size="26">
+      </div>
+    </div>
+    <div class="row coconly" style="margin-top:12px">
+      <div>
+        <label for="credit_id">Credit ID (COC)</label>
+        <input id="credit_id" list="allCols" placeholder="joins to the payment files"
+               autocomplete="off" size="26">
+      </div>
+      <div>
+        <label for="orig">Amount originated (COC)</label>
+        <input id="orig" list="numCols" placeholder="MOIC denominator" autocomplete="off" size="26">
+      </div>
+      <div>
+        <label for="orig_date">Origination date (COC)</label>
+        <input id="orig_date" list="dateCols" placeholder="sets the cohort" autocomplete="off" size="26">
+      </div>
+    </div>
+    <datalist id="numCols"></datalist>
+    <datalist id="allCols"></datalist>
+    <datalist id="dateCols"></datalist>
+    <div id="mapMsg"></div>
+
+    <h2>Summary columns</h2>
+    <div class="zlabel">Drag bubbles here. Order sets the rows. <span id="zone-sum-count" class="muted"></span></div>
+    <div id="zone-sum" class="zone"><span class="empty">Drop up to 6 numeric or date columns</span></div>
+
+    <details class="group">
+      <summary><span>PAR breakout</span><span id="zone-par-count" class="tag">none</span></summary>
+      <div class="zlabel">One sheet per attribute. Each carries PAR 7, 15 and 30, by balance and by credit count.</div>
+      <div id="zone-par" class="zone vertical"><span class="empty">Drop attributes such as Género or Sucursal</span></div>
+    </details>
+
+    <details class="group">
+      <summary><span>Concentration</span><span id="zone-conc-count" class="tag">none</span></summary>
+      <div class="zlabel">Largest exposures per attribute, with cumulative share of the book.</div>
+      <div id="zone-conc" class="zone vertical"><span class="empty">Drop attributes to rank by outstanding balance</span></div>
+    </details>
+
+    <details class="group">
+      <summary><span>Histograms</span><span id="zone-hist-count" class="tag">none</span></summary>
+      <div class="zlabel">One binned bar chart per column, all on a single sheet.</div>
+      <div id="zone-hist" class="zone vertical"><span class="empty">Drop numeric columns such as Edad or Score</span></div>
+    </details>
+
+    <h2>5. Generate</h2>
+    <button id="gen">Generate</button>
+    <div id="genMsg"></div>
+  </section>
+</main>
+
+<script type="text/plain" id="worker-src">
+/*WORKER*/
+</script>
+<script type="application/json" id="engine-files">/*FILES*/</script>
+
+<script>
+const $ = s => document.querySelector(s);
+// The Flask app runs inside the browser (worker.js + Pyodide). post() keeps the same
+// request/response shape the HTTP version had, it just goes to the worker instead.
+// The worker source and every engine file are embedded below by build.py, so this page
+// is the whole deploy: no other file has to be uploaded or served.
+const engine = new Worker(URL.createObjectURL(new Blob(
+  [document.getElementById("worker-src").textContent], { type: "text/javascript" })));
+engine.postMessage({ type: "assets",
+  files: JSON.parse(document.getElementById("engine-files").textContent) });
+const pending = new Map();
+let seq = 0;
+engine.onmessage = e => {
+  const m = e.data;
+  if (m.type === "ready") return msg($("#engine"), "", "");
+  if (m.type === "status") return $("#engine") && ($("#engine").innerHTML =
+    `<div class="note warn">${esc(m.text)} La primera vez tarda unos 20 segundos.</div>`);
+  if (m.type === "fatal") return msg($("#engine"), "err",
+    `No se pudo iniciar el motor: ${esc(m.text)}. Revisa tu conexión y recarga la página.`);
+  const p = pending.get(m.id);
+  if (!p) return;
+  pending.delete(m.id);
+  if (m.error) { console.error(m.detail); p.reject(new Error(m.error)); }
+  else p.resolve(m);
+};
+engine.onerror = e => msg($("#engine"), "err", `Error del motor: ${esc(e.message || "desconocido")}`);
+
+async function call(method, path, body, file) {
+  const m = { id: ++seq, method, path, body };
+  const transfer = [];
+  if (file) { m.file = { name: file.name, buf: await file.arrayBuffer() }; transfer.push(m.file.buf); }
+  return new Promise((resolve, reject) => {
+    pending.set(m.id, { resolve, reject });
+    engine.postMessage(m, transfer);
+  });
+}
+const TYPES = ["string", "integer", "float", "date", "boolean"];
+const MAX = 6;
+let cols = [];
+
+const msg = (el, cls, html) => { el.innerHTML = html ? `<div class="note ${cls}">${html}</div>` : ""; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const typeOf = n => (cols.find(c => c.name === n) || {}).type;
+const summarisable = n => ["integer", "float", "date"].includes(typeOf(n));
+
+async function post(url, body) {
+  const r = body instanceof File ? await call("POST", url, null, body)
+                                 : await call("POST", url, JSON.stringify(body));
+  let j;
+  try { j = JSON.parse(new TextDecoder().decode(r.buf)); } catch { j = { error: "Server error" }; }
+  if (r.status >= 400) throw new Error(j.error || "Request failed");
+  return j;
+}
+
+let lastUrl = null;
+async function download(id) {
+  const r = await call("GET", "/download/" + id);
+  if (r.status !== 200) throw new Error("The file expired, generate it again");
+  if (lastUrl) URL.revokeObjectURL(lastUrl);
+  lastUrl = URL.createObjectURL(new Blob([r.buf], { type: r.ctype ||
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  return lastUrl;
+}
+
+/* ---------- bubbles ---------- */
+
+function renderBubbles() {
+  $("#bubbles").innerHTML = cols.map(c => `
+    <span class="bub t-${c.type} ${c.calc ? "calc" : ""}" draggable="true" data-name="${esc(c.name)}">
+      <span class="nm">${esc(c.name)}</span>
+      <select data-col="${esc(c.name)}" ${c.calc ? "disabled" : ""}>
+        ${TYPES.map(t => `<option ${t === c.type ? "selected" : ""}>${t}</option>`).join("")}
+      </select>
+    </span>`).join("");
+
+  $("#bubbles").querySelectorAll("select").forEach(s => {
+    s.onchange = retype;
+    s.onmousedown = e => e.stopPropagation();          // don't start a drag on the dropdown
+  });
+  $("#bubbles").querySelectorAll(".bub").forEach(b => {
+    b.ondragstart = e => {
+      e.dataTransfer.setData("text/plain", b.dataset.name);
+      e.dataTransfer.effectAllowed = "copy";
+      b.classList.add("dragging");
+    };
+    b.ondragend = () => b.classList.remove("dragging");
+  });
+
+  const opts = list => list.map(c => `<option value="${esc(c.name)}">`).join("");
+  $("#numCols").innerHTML = opts(cols.filter(c => ["integer", "float"].includes(c.type)));
+  $("#allCols").innerHTML = opts(cols);
+  $("#dateCols").innerHTML = opts(cols.filter(c => c.type === "date"));
+}
+
+/* ---------- drop zones ---------- */
+
+// where in the list should a drop at clientX/clientY land
+function dropIndex(z, x, y) {
+  const slots = [...z.querySelectorAll(".slot:not(.dragging)")];
+  for (let i = 0; i < slots.length; i++) {
+    const r = slots[i].getBoundingClientRect();
+    if (y < r.bottom && x < r.left + r.width / 2) return i;
+  }
+  return slots.length;
+}
+
+function makeZone(id, opts) {
+  const z = $("#" + id), counter = $("#" + id + "-count");
+  const Z = {
+    items: [],
+    render() {
+      z.innerHTML = Z.items.length
+        ? Z.items.map((n, i) => `
+            <span class="slot" draggable="true" data-name="${esc(n)}">
+              ${opts.vertical ? `<span class="grip">&#8942;&#8942;</span>` : ""}
+              ${opts.ordered ? `<span class="ix">${i + 1}</span>` : ""}
+              <span class="${opts.vertical ? "what" : ""}">${
+                opts.label ? opts.label(n) : esc(n)}</span>
+              ${opts.spec ? `<span class="spec">${opts.spec}</span>` : ""}
+              <button class="rm" data-rm="${esc(n)}" title="Remove">&times;</button>
+            </span>`).join("")
+        : `<span class="empty">${opts.empty}</span>`;
+      if (counter) counter.textContent =
+        opts.max ? `${Z.items.length} of ${opts.max}`
+                 : Z.items.length ? `${Z.items.length} sheet${Z.items.length > 1 ? "s" : ""}`
+                                  : "none";
+      z.querySelectorAll(".rm").forEach(b => b.onclick = () => {
+        Z.items = Z.items.filter(x => x !== b.dataset.rm); Z.render();
+      });
+      z.querySelectorAll(".slot").forEach(s => {
+        s.ondragstart = e => {
+          e.dataTransfer.setData("text/plain", s.dataset.name);
+          e.dataTransfer.effectAllowed = "move";
+          s.classList.add("dragging");
+        };
+        s.ondragend = () => s.classList.remove("dragging");
+      });
+    },
+    prune() {                       // drop anything the zone no longer accepts
+      const gone = Z.items.filter(n => !cols.some(c => c.name === n) || !opts.accepts(n));
+      if (gone.length) { Z.items = Z.items.filter(n => !gone.includes(n)); Z.render(); }
+      return gone;
+    },
+  };
+  z.addEventListener("dragover", e => { e.preventDefault(); z.classList.add("over"); });
+  z.addEventListener("dragleave", e => {
+    if (!z.contains(e.relatedTarget)) z.classList.remove("over");
+  });
+  z.addEventListener("drop", e => {
+    e.preventDefault();
+    z.classList.remove("over");
+    const name = e.dataTransfer.getData("text/plain");
+    if (!name || !cols.some(c => c.name === name)) return;
+    if (!opts.accepts(name)) {
+      msg($("#mapMsg"), "warn",
+        `<b>${esc(name)}</b> is ${esc(typeOf(name))}. ${opts.reject}`);
+      return;
+    }
+    const at = dropIndex(z, e.clientX, e.clientY);
+    const was = Z.items.indexOf(name);
+    if (was === -1 && opts.max && Z.items.length >= opts.max) {
+      msg($("#mapMsg"), "warn", `That block holds ${opts.max}. Remove one first.`);
+      return;
+    }
+    if (was !== -1) Z.items.splice(was, 1);
+    Z.items.splice(was !== -1 && was < at ? at - 1 : at, 0, name);
+    msg($("#mapMsg"), "", "");
+    Z.render();
+  });
+  return Z;
+}
+
+const ZSUM = makeZone("zone-sum", {
+  ordered: true, max: MAX, accepts: summarisable,
+  empty: `Drop up to ${MAX} numeric or date columns`,
+  reject: "The summary needs numbers or dates for min / max / weighted average.",
+});
+const ZPAR = makeZone("zone-par", {
+  vertical: true, accepts: n => !!typeOf(n),
+  label: n => `PAR by ${esc(n)}`, spec: "7 / 15 / 30 &nbsp;·&nbsp; balance + count",
+  empty: "Drop attributes such as Género or Sucursal",
+  reject: "",
+});
+const ZCONC = makeZone("zone-conc", {
+  vertical: true, accepts: n => !!typeOf(n),
+  label: n => `Concentration by ${esc(n)}`, spec: "top 20 &nbsp;·&nbsp; cumulative share",
+  empty: "Drop attributes to rank by outstanding balance",
+  reject: "",
+});
+const ZHIST = makeZone("zone-hist", {
+  vertical: true, accepts: n => ["integer", "float"].includes(typeOf(n)),
+  label: n => `Histogram of ${esc(n)}`, spec: "12 bins &nbsp;·&nbsp; bar chart",
+  empty: "Drop numeric columns such as Edad or Score",
+  reject: "A histogram needs a numeric column.",
+});
+const ZONES = [ZSUM, ZPAR, ZCONC, ZHIST];
+const renderZones = () => ZONES.forEach(z => z.render());
+
+/* ---------- actions ---------- */
+
+async function retype(e) {
+  const sel = e.target, col = sel.dataset.col, prev = typeOf(col);
+  try {
+    const r = await post("/retype", { column: col, type: sel.value });
+    cols = r.columns;
+    const bad = ZONES.flatMap(z => z.prune());
+    if (r.failed) {
+      msg($("#typeMsg"), "warn",
+        `<b>${esc(col)} to ${esc(sel.value)}:</b> ${r.failed} of ${r.total} rows could not be
+         converted and are now empty. Examples:
+         ${r.samples.map(s => `<code>${esc(s)}</code>`).join(", ")}.
+         <button id="undo" class="ghost" style="margin-left:8px">Undo</button>`);
+      $("#undo").onclick = async () => {
+        cols = (await post("/revert", { column: col, type: prev })).columns;
+        msg($("#typeMsg"), "", ""); renderBubbles(); renderZones();
+      };
+    } else {
+      msg($("#typeMsg"), "ok", `<b>${esc(col)}</b> converted to ${esc(sel.value)}, all ${r.total} rows.`);
+    }
+    if (bad.length) msg($("#mapMsg"), "warn",
+      `Removed, no longer a valid type for that block: ${bad.map(esc).join(", ")}.`);
+    renderBubbles(); renderZones();
+  } catch (err) { msg($("#typeMsg"), "err", esc(err.message)); }
+}
+
+/* ---------- mode + the three files ---------- */
+
+const mode = () => document.querySelector("input[name=mode]:checked").value;
+function applyMode() { document.body.className = mode() === "coc" ? "coc" : "tape"; }
+document.querySelectorAll("input[name=mode]").forEach(r => r.onchange = applyMode);
+applyMode();
+
+document.querySelectorAll(".file input[type=file]").forEach(inp => {
+  inp.onchange = async () => {
+    const box = inp.closest(".file"), stat = box.querySelector(".fstat");
+    const f = inp.files[0];
+    if (!f) return;
+    const slot = inp.dataset.slot;
+    box.className = "file" + (slot === "tape" ? "" : " coconly");
+    stat.textContent = "reading...";
+    try {
+      const r = await post("/upload?slot=" + slot, f);
+      box.classList.add("done");
+      if (slot === "tape") {
+        cols = r.columns; ZONES.forEach(z => z.items = []);
+        stat.textContent = `${r.rows.toLocaleString()} rows, ${cols.length} columns`;
+        $("#s2").hidden = false;
+        ["#typeMsg", "#genMsg", "#mapMsg", "#calcMsg"].forEach(x => msg($(x), "", ""));
+        // a new tape resets the payment files server-side; reflect that here
+        document.querySelectorAll(".file.coconly").forEach(b => {
+          b.className = "file coconly"; b.querySelector(".fstat").textContent = "";
+          b.querySelector("input").value = "";
+        });
+        renderBubbles(); renderZones();
+      } else {
+        stat.textContent = `${r.rows.toLocaleString()} rows, ${r.columns.length} columns`;
+      }
+      msg($("#upInfo"), "", "");
+    } catch (err) {
+      box.classList.add("bad");
+      stat.textContent = "";
+      msg($("#upInfo"), "err", esc(err.message));
+    }
+  };
+});
+
+$("#addCalc").onclick = async () => {
+  try {
+    cols = (await post("/calc", { name: $("#cname").value, expr: $("#cexpr").value })).columns;
+    $("#cname").value = ""; $("#cexpr").value = "";
+    msg($("#calcMsg"), "", ""); renderBubbles();
+  } catch (err) { msg($("#calcMsg"), "err", esc(err.message)); }
+};
+
+$("#gen").onclick = async () => {
+  const V = id => $("#" + id).value.trim();
+  const saldo = V("saldo"), dpd = V("dpd");
+  const body = { mode: mode(), saldo, dpd, summary: ZSUM.items,
+                 par: ZPAR.items, conc: ZCONC.items, hist: ZHIST.items,
+                 dedupe: $("#dedupe").checked };
+  let need = [saldo, dpd];
+  if (mode() === "coc") {
+    Object.assign(body, { credit_id: V("credit_id"), orig: V("orig"),
+                          orig_date: V("orig_date") });
+    need = need.concat([body.credit_id, body.orig, body.orig_date]);
+    if (need.some(v => !v))
+      return msg($("#genMsg"), "err",
+        "COC needs Saldo Insoluto, Días de Atraso, Credit ID, Amount originated and Origination date.");
+  }
+  const unknown = need.filter(v => v && !cols.some(c => c.name === v));
+  if (unknown.length)
+    return msg($("#genMsg"), "err", `No column named ${unknown.map(esc).join(" or ")}.`);
+  $("#gen").disabled = true;
+  msg($("#genMsg"), "ok", "Generating... large files can take a minute.");
+  try {
+    const r = await post("/generate", body);
+    const url = await download(r.id);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const notes = [];
+    if (r.blanks) notes.push(`${r.blanks} of ${r.total} rows have no ${esc(dpd)}
+      and are counted as current in the 0 dpd bucket.`);
+    if (r.dropped && r.dropped.length)
+      notes.push(`Left out of the summary: ${r.dropped.map(esc).join(", ")}.`);
+    if (r.credits) notes.push(
+      `${r.credits.toLocaleString()} credit IDs. Expected ${r.esperados_rows.toLocaleString()} rows
+       kept, ${r.esperados_dropped.toLocaleString()} dropped as duplicate or not in the tape.
+       Received ${r.recibidos_rows.toLocaleString()} kept, ${r.recibidos_dropped.toLocaleString()} not in the tape.`);
+    if (r.detected) notes.push(
+      `Payment columns matched automatically: expected ${esc(r.detected.esp.id)} /
+       ${esc(r.detected.esp.amount)}, received ${esc(r.detected.rec.id)} / ${esc(r.detected.rec.amount)}.`);
+    msg($("#genMsg"), "ok",
+      `Your file is ready. <a href="${url}" download="Portfolio Analysis ${stamp}.xlsx"><button style="margin-left:8px">Download</button></a>
+       ${notes.length ? `<div style="margin-top:9px">${notes.join("<br>")}</div>` : ""}`);
+  } catch (err) { msg($("#genMsg"), "err", esc(err.message)); }
+  $("#gen").disabled = false;
+};
+</script>

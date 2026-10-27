@@ -1,0 +1,10 @@
+# Never commit loan tapes or payment files: they carry borrowers' names.
+*.csv
+*.txt
+/*.xlsx
+data/
+Data to Use/
+__pycache__/
+.vercel
+.DS_Store
+Thumbs.db
